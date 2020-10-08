@@ -6,7 +6,7 @@ import requests
 from yarl import URL
 
 from pypdxapi.__version__ import __version__
-from pypdxapi.base import ParadoxModule
+from pypdxapi.module import ParadoxModule
 from pypdxapi.exceptions import ParadoxCameraError
 
 _LOGGER = logging.getLogger(__name__)
