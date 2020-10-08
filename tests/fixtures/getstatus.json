@@ -1,0 +1,20 @@
+{
+   "CPProgrammingChanged" : true,
+   "LastPMHPolling" : 0,
+   "LocalDateTime" : "Tue Sep 22 20:08:57 2020",
+   "RODRestartRequested" : 0,
+   "RODTimeLeft" : 0,
+   "ReceiverRegistrationStatusCode" : 0,
+   "ReceiverRegistrationStatusDescription" : "Unknown request",
+   "ResultCode" : 33619968,
+   "ResultStr" : "Get status request successful",
+   "Server" : {
+      "InstallerEmailAddress" : "",
+      "InstallerName" : "",
+      "InstallerPhoneNumber" : ""
+   },
+   "ServerLastEventID" : 170,
+   "ServerParametersVersion" : 4,
+   "SessionsConnected" : 1,
+   "WhiteLedStatus" : false
+}
