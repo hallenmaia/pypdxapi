@@ -4,3 +4,8 @@
 class ParadoxModuleError(Exception):
     """Generic exception for Paradox modules."""
     pass
+
+
+class ParadoxCameraError(ParadoxModuleError):
+    """Generic exception for Camera modules."""
+    pass
