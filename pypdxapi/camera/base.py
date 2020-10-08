@@ -5,7 +5,7 @@ from typing import Optional
 import requests
 from yarl import URL
 
-from pypdxapi.version import __version__
+from pypdxapi.__version__ import __version__
 from pypdxapi.base import ParadoxModule
 from pypdxapi.camera.exceptions import ParadoxCameraError
 
