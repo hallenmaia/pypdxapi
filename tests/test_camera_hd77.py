@@ -4,7 +4,7 @@ import pytest
 import requests
 import requests_mock
 
-from pypdxapi.camera.exceptions import ParadoxCameraError
+from pypdxapi.exceptions import ParadoxCameraError
 from pypdxapi.camera.hd77 import ParadoxHD77
 
 
