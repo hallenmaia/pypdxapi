@@ -1,0 +1,20 @@
+{
+  "Items": [
+    {
+      "Downloadable": true,
+      "Duration": 120,
+      "ItemDate": 1602016161,
+      "ItemID": "45fcc296-2718-4519-a1e9-59d016c4ce8a",
+      "ItemIndex": 7,
+      "ItemName": "R Tue Oct  6 20:31:28 2020\n",
+      "ItemOwner": 2,
+      "ItemType": 2,
+      "Notes": "",
+      "ReadOnly": false,
+      "Size": 104497955
+    }
+  ],
+  "LocalDateTime": "Tue Oct  6 20:34:25 2020",
+  "ResultCode": 33882112,
+  "ResultStr": "Browse, request successful"
+}

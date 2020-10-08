@@ -1,0 +1,84 @@
+{
+   "CurrentUser" : {
+      "CPUserId" : 2,
+      "CPUserProfile" : [
+         {
+            "ParamName" : "UserTypeID",
+            "ParamValue" : 0
+         },
+         {
+            "ParamName" : "UserType",
+            "ParamValue" : "User"
+         },
+         {
+            "ParamName" : "UserAreas",
+            "ParamValue" : {
+               "UserAreas" : [
+                  {
+                     "AreaID" : 1
+                  },
+                  {
+                     "AreaID" : 2
+                  }
+               ]
+            }
+         },
+         {
+            "ParamName" : "Duress",
+            "ParamValue" : false
+         },
+         {
+            "ParamName" : "Bypass",
+            "ParamValue" : true
+         },
+         {
+            "ParamName" : "ArmOnly",
+            "ParamValue" : false
+         },
+         {
+            "ParamName" : "Stay/Instant",
+            "ParamValue" : true
+         },
+         {
+            "ParamName" : "Sleep",
+            "ParamValue" : false
+         },
+         {
+            "ParamName" : "Force",
+            "ParamValue" : true
+         },
+         {
+            "ParamName" : "ServerAreaOnly",
+            "ParamValue" : false
+         }
+      ],
+      "Label" : "User 001        ",
+      "ServerUserProfileDesc" : "VODUser",
+      "ServerUserProfileID" : 1
+   },
+   "LocalDateTime" : "Tue Sep 22 14:39:50 2020",
+   "ParadoxCP" : {
+      "AreaCount" : 8,
+      "PGMCount" : 5,
+      "Revision" : "31",
+      "SerialNo" : "01001010",
+      "UtilityKeyCount" : 16,
+      "Version" : "7",
+      "ZoneCount" : 192
+   },
+   "ResultCode" : 33554432,
+   "ResultStr" : "Login successful",
+   "Server" : {
+      "AreaId" : 1,
+      "CMSMode" : false,
+      "Label" : "Camera 1        ",
+      "NorVersion" : "",
+      "Revision" : "25",
+      "SdCardVersion" : "v1.25.7",
+      "SerialNo" : "e0000002",
+      "ServerParametersVersion" : 0,
+      "Version" : "1"
+   },
+   "ledType" : "IR_LEDS",
+   "sessionKey" : "qeQHCBgRXSEKUNEcbNMBxCt_Jeh67gLk"
+}

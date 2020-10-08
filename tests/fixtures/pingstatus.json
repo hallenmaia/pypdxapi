@@ -1,0 +1,44 @@
+{
+   "AreaStatus" : [
+      {
+         "AreaId" : 1,
+         "AreaLabel" : "Area 1          ",
+         "ArmingLevelDesc" : "Disarm",
+         "ArmingLevelID" : 0,
+         "FirePanic" : true,
+         "ForceArmed" : false,
+         "InAlarm" : false,
+         "LastReportedAlarm" : "Thu Jan  1 00:00:00 1970",
+         "LastStatusUpdate" : "Wed Sep 23 14:48:33 2020",
+         "MedicalPanic" : true,
+         "MemAlarm" : false,
+         "PolicePanic" : true
+      },
+      {
+         "AreaId" : 2,
+         "AreaLabel" : "Area 2          ",
+         "ArmingLevelDesc" : "Disarm",
+         "ArmingLevelID" : 0,
+         "FirePanic" : false,
+         "ForceArmed" : false,
+         "InAlarm" : false,
+         "LastReportedAlarm" : "Thu Jan  1 00:00:00 1970",
+         "LastStatusUpdate" : "Wed Sep 23 12:46:10 2020",
+         "MedicalPanic" : false,
+         "MemAlarm" : false,
+         "PolicePanic" : false
+      }
+   ],
+   "LastPMHPolling" : 0,
+   "LocalDateTime" : "Wed Sep 23 15:15:19 2020",
+   "ReceiverRegistrationStatusCode" : 0,
+   "ReceiverRegistrationStatusDescription" : "Unknown request",
+   "ResultCode" : 35127296,
+   "ResultStr" : "Ping status request successful",
+   "SerialNumber" : "e0000002",
+   "Server" : {
+      "InstallerEmailAddress" : "",
+      "InstallerName" : "",
+      "InstallerPhoneNumber" : ""
+   }
+}
