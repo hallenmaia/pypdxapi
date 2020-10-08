@@ -3,7 +3,7 @@ import pytest
 import requests
 import requests_mock
 
-from pypdxapi.camera.base import (ParadoxCamera, ParadoxCameraError)
+from pypdxapi.camera.camera import (ParadoxCamera, ParadoxCameraError)
 
 
 def fake_api(request, context):

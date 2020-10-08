@@ -2,7 +2,7 @@
 from typing import Any, List
 import logging
 
-from pypdxapi.camera.base import ParadoxCamera
+from .camera import ParadoxCamera
 
 _LOGGER = logging.getLogger(__name__)
 
