@@ -66,7 +66,7 @@ class ParadoxHD77(ParadoxCamera):
     def logout(self) -> None:
         raise NotImplementedError()
 
-    def pingstatus(self) -> Any:
+    def pingstatus(self) -> dict:
         """ Get some info from camera and panel. This not require login.
 
         :return: json data
@@ -79,7 +79,7 @@ class ParadoxHD77(ParadoxCamera):
 
         return self.api_request('POST', endpoint='/app/pingstatus', payload=payload, result_code=35127296)
 
-    def getstatus(self, status_type: int, keep_alive: bool = False) -> Any:
+    def getstatus(self, status_type: int, keep_alive: bool = False) -> dict:
         """ Get more info from camera and panel like zones, areas, status, etc...
 
         :param status_type: (required) It can be 1, 2, or 3. Each one returns a type of information.
@@ -95,7 +95,7 @@ class ParadoxHD77(ParadoxCamera):
 
         return self.api_request('POST', endpoint='/app/getstatus', payload=payload, result_code=33619968)
 
-    def rod(self, action: int = 3, rec_resolution: int = 720) -> Any:
+    def rod(self, action: int = 3, rec_resolution: int = 720) -> dict:
         """ Command recording on demand (ROD).
 
         :param action: (optional) 3 -> Start recording
@@ -111,7 +111,7 @@ class ParadoxHD77(ParadoxCamera):
 
         return self.api_request('POST', endpoint='/app/rod', payload=payload, result_code=33816578)
 
-    def areacontrol(self, area_commands: List[dict]) -> Any:
+    def areacontrol(self, area_commands: List[dict]) -> dict:
         """ Send arming and disarming commands to the panel.
 
         :param area_commands: (required) Array of dict [{"ForceZones": False, "AreaCommand": 6, "AreaID": 1}]:
@@ -131,7 +131,7 @@ class ParadoxHD77(ParadoxCamera):
         return self.api_request('POST', endpoint='/app/areacontrol', payload=payload)
 
     def getitemlist(self, items_count: int = 150, direction: str = 'Ascending', order_by: str = 'date',
-                    item_index: int = 0) -> Any:
+                    item_index: int = 0) -> dict:
         """ Returns the list of files stored on the camera
 
         :param items_count: (optional) Max number of items to be returned. Default is 150
@@ -151,7 +151,7 @@ class ParadoxHD77(ParadoxCamera):
 
         return self.api_request('POST', endpoint='/fil/getitemlist', payload=payload, result_code=33882112)
 
-    def deleteitem(self, item_id: str) -> Any:
+    def deleteitem(self, item_id: str) -> dict:
         """ Delete recording file
 
         :param item_id: (required) File id returned in getitemlist
@@ -165,7 +165,7 @@ class ParadoxHD77(ParadoxCamera):
 
         return self.api_request('POST', endpoint='/fil/deleteitem', payload=payload, result_code=34144256)
 
-    def playback(self, item_id: str, action: int = 0) -> Any:
+    def playback(self, item_id: str, action: int = 0) -> dict:
         """ Prepares the recording file to play and returns the url for access.
 
         :param item_id: (required) File id returned in getitemlist
