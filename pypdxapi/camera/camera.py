@@ -62,8 +62,7 @@ class ParadoxCamera(ParadoxModule):
 
         _LOGGER.debug(f"{method} to {url} with payload: {payload}")
         response = self._session.request(method, url, headers=headers, json=payload, **kwargs)
-        if self._raise_on_response_error:
-            response.raise_for_status()
+        response.raise_for_status()
         self._last_api_call = datetime.now()
 
         return self._parse_response(response, result_code)
