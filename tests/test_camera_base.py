@@ -57,10 +57,6 @@ def test_api_request_404(client_session: requests.Session):
     base = ParadoxCamera(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
     base._url = base._url.with_scheme('mock')
 
-    response = base.api_request(method='POST', endpoint='/404', payload={})
-    assert response == b'404'
-
-    base._raise_on_response_error = True
     with pytest.raises(requests.exceptions.HTTPError):
         base.api_request(method='POST', endpoint='/404', payload={})
 
