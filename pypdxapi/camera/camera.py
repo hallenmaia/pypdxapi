@@ -76,7 +76,7 @@ class ParadoxCamera(ParadoxModule):
         :param result_code: (optional) Successful return code to check response.
         :return: JSON data if content type is application/json.
         """
-        content_type = response.headers.get('Content-type', 'application/json')
+        content_type = response.headers.get('Content-type')
         if content_type != 'application/json':
             return response.content
 
