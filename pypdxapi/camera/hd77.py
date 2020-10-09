@@ -52,14 +52,17 @@ class ParadoxHD77(ParadoxCamera):
             "ServerPassword": self._module_password,
             "UserName": username
         }
+        self._session_key = None
 
         data = self.api_request('POST', endpoint='/app/login', payload=payload, result_code=33554432)
-        if data['ResultCode'] == 33554432:
-            self._name = data['Server']['Label'].strip()
-            self._model = 'HD77'
-            self._serial = data['Server']['SerialNo'].strip()
-            self._version = data['Server']['SdCardVersion'].strip()
-            self._session_key = data['sessionKey']
+
+        if isinstance(data, dict):
+            if 'ResultCode' in data and data['ResultCode'] == 33554432:
+                self._name = data['Server']['Label'].strip()
+                self._model = 'HD77'
+                self._serial = data['Server']['SerialNo'].strip()
+                self._version = data['Server']['SdCardVersion'].strip()
+                self._session_key = data['sessionKey']
 
         return data
 
