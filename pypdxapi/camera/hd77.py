@@ -1,6 +1,7 @@
 """ Python implementation of Paradox HD77 camera."""
-from typing import Any, List
 import logging
+from typing import Any, List
+from datetime import datetime
 
 from .camera import ParadoxCamera
 
@@ -26,6 +27,11 @@ class ParadoxHD77(ParadoxCamera):
         """
         super().__init__(host=host, port=port, module_password=module_password, **kwargs)
 
+    @staticmethod
+    def _client_datetime() -> str:
+        """ Return current datetime in timestamp """
+        return str(datetime.now().timestamp())
+
     def login(self, usercode: str, username: str) -> bool:
         """ Logs the user into the camera and obtains the camera data such as: series, version, model and name.
         It also stores the session key for access to other functions that require authentication. This session key will
@@ -47,19 +53,14 @@ class ParadoxHD77(ParadoxCamera):
             "UserName": username
         }
 
-        response = self._api_request('POST', endpoint='/app/login', payload=payload)
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        if 'ResultCode' in data and data['ResultCode'] == 33554432:
+        data = self.api_request('POST', endpoint='/app/login', payload=payload, result_code=33554432)
+        if data['ResultCode'] == 33554432:
             self._name = data['Server']['Label'].strip()
             self._model = 'HD77'
             self._serial = data['Server']['SerialNo'].strip()
             self._version = data['Server']['SdCardVersion'].strip()
             self._session_key = data['sessionKey']
             return True
-        else:
-            self._raise_for_response_error(data)
 
         return False
 
@@ -77,14 +78,7 @@ class ParadoxHD77(ParadoxCamera):
             "ServerPassword": self._module_password,
         }
 
-        response = self._api_request('POST', endpoint='/app/pingstatus', payload=payload)
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        if 'ResultCode' in data and data['ResultCode'] != 35127296:
-            self._raise_for_response_error(data)
-
-        return data
+        return self.api_request('POST', endpoint='/app/pingstatus', payload=payload, result_code=35127296)
 
     def getstatus(self, status_type: int, keep_alive: bool = False) -> Any:
         """ Get more info from camera and panel like zones, areas, status, etc...
@@ -100,14 +94,7 @@ class ParadoxHD77(ParadoxCamera):
             "keepAlive": keep_alive
         }
 
-        response = self._api_request('POST', endpoint='/app/getstatus', payload=payload)
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        if 'ResultCode' in data and data['ResultCode'] != 33619968:
-            self._raise_for_response_error(data)
-
-        return data
+        return self.api_request('POST', endpoint='/app/getstatus', payload=payload, result_code=33619968)
 
     def rod(self, action: int = 3, rec_resolution: int = 720) -> Any:
         """ Command recording on demand (ROD).
@@ -123,14 +110,7 @@ class ParadoxHD77(ParadoxCamera):
             "RecResolution": rec_resolution
         }
 
-        response = self._api_request('POST', endpoint='/app/rod', payload=payload)
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        if 'ResultCode' in data and data['ResultCode'] != 33816578:
-            self._raise_for_response_error(data)
-
-        return data
+        return self.api_request('POST', endpoint='/app/rod', payload=payload, result_code=33816578)
 
     def areacontrol(self, area_commands: List[dict]) -> Any:
         """ Send arming and disarming commands to the panel.
@@ -149,11 +129,7 @@ class ParadoxHD77(ParadoxCamera):
             "SessionKey": self._session_key
         }
 
-        response = self._api_request('POST', endpoint='/app/areacontrol', payload=payload)
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        return data
+        return self.api_request('POST', endpoint='/app/areacontrol', payload=payload)
 
     def getitemlist(self, items_count: int = 150, direction: str = 'Ascending', order_by: str = 'date',
                     item_index: int = 0) -> Any:
@@ -174,14 +150,7 @@ class ParadoxHD77(ParadoxCamera):
             "ItemIndex": item_index
         }
 
-        response = self._api_request('POST', endpoint='/fil/getitemlist', payload=payload)
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        if 'ResultCode' in data and data['ResultCode'] != 33882112:
-            self._raise_for_response_error(data)
-
-        return data
+        return self.api_request('POST', endpoint='/fil/getitemlist', payload=payload, result_code=33882112)
 
     def deleteitem(self, item_id: str) -> Any:
         """ Delete recording file
@@ -195,14 +164,7 @@ class ParadoxHD77(ParadoxCamera):
             "SessionKey": self._session_key,
         }
 
-        response = self._api_request('POST', endpoint='/fil/deleteitem', payload=payload)
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        if 'ResultCode' in data and data['ResultCode'] != 34144256:
-            self._raise_for_response_error(data)
-
-        return data
+        return self.api_request('POST', endpoint='/fil/deleteitem', payload=payload, result_code=34144256)
 
     def playback(self, item_id: str, action: int = 0) -> Any:
         """ Prepares the recording file to play and returns the url for access.
@@ -218,14 +180,7 @@ class ParadoxHD77(ParadoxCamera):
             "ItemId": item_id
         }
 
-        response = self._api_request('POST', endpoint='/fil/playback', payload=payload)
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        if 'ResultCode' in data and data['ResultCode'] != 544210944:
-            self._raise_for_response_error(data)
-
-        return data
+        return self.api_request('POST', endpoint='/fil/playback', payload=payload, result_code=544210944)
 
     def getthumbnail(self) -> Any:
         """ Capture a thumbnail in real time.
@@ -237,18 +192,7 @@ class ParadoxHD77(ParadoxCamera):
             "SessionKey": self._session_key
         }
 
-        response = self._api_request('POST', endpoint='/fil/getthumbnail', payload=payload)
-        content_type = response.headers.get('Content-type', 'application/json')
-
-        if content_type == 'application/octet-stream':
-            return response.content
-
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        self._raise_for_response_error(data=data)
-
-        return data
+        return self.api_request('POST', endpoint='/fil/getthumbnail', payload=payload, result_code=0)
 
     def vod(self, action: int = 1, channel_type: str = 'normal') -> Any:
         """ Request the video on demand and return an m3u8 file containing the access urls.
@@ -264,15 +208,4 @@ class ParadoxHD77(ParadoxCamera):
             "ChannelType": channel_type,
         }
 
-        response = self._api_request('POST', endpoint='/hls/vod', payload=payload)
-        content_type = response.headers.get('Content-type', 'application/json')
-
-        if content_type == 'audio/x-mpegURL':
-            return response.content
-
-        data = response.json()
-
-        _LOGGER.debug(f"Result: {data}")
-        self._raise_for_response_error(data=data)
-
-        return data
+        return self.api_request('POST', endpoint='/hls/vod', payload=payload, result_code=0)
