@@ -32,7 +32,7 @@ class ParadoxHD77(ParadoxCamera):
         """ Return current datetime in timestamp """
         return str(datetime.now().timestamp())
 
-    def login(self, usercode: str, username: str) -> bool:
+    def login(self, usercode: str, username: str) -> dict:
         """ Logs the user into the camera and obtains the camera data such as: series, version, model and name.
         It also stores the session key for access to other functions that require authentication. This session key will
         expire if not used in 2 minutes.
@@ -60,9 +60,8 @@ class ParadoxHD77(ParadoxCamera):
             self._serial = data['Server']['SerialNo'].strip()
             self._version = data['Server']['SdCardVersion'].strip()
             self._session_key = data['sessionKey']
-            return True
 
-        return False
+        return data
 
     def logout(self) -> None:
         raise NotImplementedError()
