@@ -4,13 +4,13 @@ import pytest
 import requests
 import requests_mock
 
-from pypdxapi.camera.exceptions import ParadoxCameraError
+from pypdxapi.exceptions import ParadoxCameraError
 from pypdxapi.camera.hd77 import ParadoxHD77
 
 
 def load_fixture(filename):
     """Load a fixture."""
-    path = os.path.join(os.path.dirname(__file__), 'fixtures', filename)
+    path = os.path.join(os.path.dirname(__file__), 'fixtures/hd77', filename)
     with open(path) as fptr:
         return fptr.read()
 

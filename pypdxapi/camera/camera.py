@@ -1,13 +1,13 @@
 """ Python implementation of Paradox HD7X cameras."""
 import logging
-from datetime import datetime
-from typing import Optional
 import requests
+from datetime import datetime
+from typing import Optional, Any
 from yarl import URL
 
-from pypdxapi.version import __version__
-from pypdxapi.base import ParadoxModule
-from pypdxapi.camera.exceptions import ParadoxCameraError
+from pypdxapi.__version__ import __version__
+from pypdxapi.module import ParadoxModule
+from pypdxapi.exceptions import ParadoxCameraError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,13 +45,8 @@ class ParadoxCamera(ParadoxModule):
         """ Return last api call."""
         return self._last_api_call
 
-    @staticmethod
-    def _client_datetime() -> str:
-        """ Return current datetime in timestamp """
-        return str(datetime.now().timestamp())
-
-    def _api_request(self, method: str, endpoint: str, payload: Optional[dict] = None,
-                     **kwargs) -> requests.Response:
+    def api_request(self, method: str, endpoint: str, payload: Optional[dict] = None,
+                    result_code: Optional[int] = None, **kwargs) -> Any:
         """ Handle a request to camera. """
         headers = {
             "User-Agent": self._user_agent,
@@ -70,17 +65,39 @@ class ParadoxCamera(ParadoxModule):
         response.raise_for_status()
         self._last_api_call = datetime.now()
 
-        return response
+        return self._parse_response(response, result_code)
 
-    def _raise_for_response_error(self, data: Optional[dict] = None) -> None:
-        """ Raise error"""
-        if self._raise_on_response_error:
-            if data and 'ResultCode' in data:
-                msg = f"Error no {data['ResultCode']}: {data['ResultStr']}"
+    def _parse_response(self, response: requests.Response, result_code: Optional[int] = None) -> Any:
+        """
+        Parse response from requests and check if ResultCode from api is valid.
+
+        :param response: (required) requests.Response.
+        :param result_code: (optional) Successful return code to check response.
+        :return: JSON data if content type is application/json.
+        """
+        content_type = response.headers.get('Content-type')
+        if content_type != 'application/json':
+            return response.content
+
+        data = response.json()
+        _LOGGER.debug(f"Result: {data}")
+
+        if result_code is None:
+            return data
+        else:
+            if 'ResultCode' in data:
+                if data['ResultCode'] == result_code:
+                    return data
             else:
-                msg = 'Unknown error occurred while communicating with Paradox camera.'
+                data = {
+                    "ResultCode": -1,
+                    "ResultStr": "Unknown error occurred while communicating with Paradox camera."
+                }
 
-            raise ParadoxCameraError(msg)
+        if self._raise_on_response_error:
+            raise ParadoxCameraError(f"Error no {data['ResultCode']}: {data['ResultStr']}")
+
+        return data
 
     def _close_session(self) -> None:
         """Close open client session."""

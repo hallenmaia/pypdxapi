@@ -12,7 +12,7 @@ else:
         long_description = f.read()
 
 version = {}
-with open(os.path.join('pypdxapi', 'version.py')) as f:
+with open(os.path.join('pypdxapi', '__version__.py')) as f:
     exec(f.read(), version)
 
 setup(
