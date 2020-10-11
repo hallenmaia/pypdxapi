@@ -3,6 +3,7 @@ import json
 import pytest
 import requests
 import requests_mock
+from time import sleep
 
 from pypdxapi.camera.camera import (ParadoxCamera, ParadoxCameraError)
 
@@ -106,3 +107,21 @@ def test_api_request_json(client_session: requests.Session):
     with pytest.raises(ParadoxCameraError) as err:
         base.api_request(method='POST', endpoint='/application_json', payload=payload, result_code=101010)
         assert 'Unknown error occurred while communicating with Paradox camera.' == str(err.value)
+
+
+def test_is_authenticated(client_session: requests.Session):
+    base = ParadoxCamera(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
+    base._url = base._url.with_scheme('mock')
+
+    assert not base.is_authenticated()
+    base._session_key = '_session_key'
+    assert not base.is_authenticated()
+
+    payload = {"RequestCode": 1}
+    response = base.api_request(method='POST', endpoint='/application_json', payload=payload)
+    assert response['ResultStr'] == 'Success'
+    assert base.is_authenticated()
+
+    sleep(3)
+    assert not base.is_authenticated(timeout=2)
+

@@ -1,7 +1,7 @@
 """ Python implementation of Paradox HD7X cameras."""
 import logging
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Any
 from yarl import URL
 
@@ -66,6 +66,18 @@ class ParadoxCamera(ParadoxModule):
         self._last_api_call = datetime.now()
 
         return self._parse_response(response, result_code)
+
+    def is_authenticated(self, timeout: int = 120) -> bool:
+        if self._session_key is None or self._last_api_call is None:
+            return False
+
+        now = datetime.now()
+        last = self._last_api_call
+
+        if now - last >= timedelta(seconds=timeout):
+            return False
+
+        return True
 
     def _parse_response(self, response: requests.Response, result_code: Optional[int] = None) -> Any:
         """
