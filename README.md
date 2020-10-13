@@ -29,15 +29,23 @@ pip install pypdxapi
 ### API usage example
 
 ```python
+import asyncio
+
 from pypdxapi.camera import ParadoxHD77
 
-cam = ParadoxHD77(host='192.168.1.50', port=80, module_password='paradox')
-success = cam.login(usercode='1234', username='master')
-if success:
-    m3u8 = cam.vod(action=1, channel_type='normal')
-```
 
-For more information see docs.
+async def main():
+    """Show example of connecting to your Paradox HD77 camera."""
+    async with ParadoxHD77(host='192.168.1.50', port=80, module_password='paradox') as hd77:
+        hd77.login(usercode='1234', username='master')
+        if hd77.is_authenticated():
+            print(hd77.vod(action=1, channel_type='normal'))
+
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
+```
 
 ### Discovery usage example
 
@@ -46,6 +54,8 @@ from pypdxapi.helpers import discover_modules
 
 modules = discover_modules()
 ```
+
+For more information see docs.
 
 ## Disclaimer
 

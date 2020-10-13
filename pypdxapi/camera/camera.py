@@ -1,6 +1,7 @@
 """ Python implementation of Paradox HD7X cameras."""
 import logging
-import requests
+import aiohttp
+import async_timeout
 from datetime import datetime, timedelta
 from typing import Optional, Any
 from yarl import URL
@@ -22,12 +23,12 @@ class ParadoxCamera(ParadoxModule):
     _can_close_session: bool = False
 
     def __init__(self, host: str, port: int, module_password: str,
-                 session: requests.Session = None,
+                 client_session: aiohttp.ClientSession = None,
                  request_timeout: Optional[int] = None,
                  user_agent: Optional[str] = None,
                  raise_on_response_error: bool = False) -> None:
 
-        self._session = session
+        self._client_session = client_session
         self._request_timeout: int = request_timeout if request_timeout else 10
         self._user_agent: str = user_agent if user_agent else f"PyPdxApi/{__version__}"
         self._raise_on_response_error: bool = raise_on_response_error
@@ -45,53 +46,60 @@ class ParadoxCamera(ParadoxModule):
         """ Return last api call."""
         return self._last_api_call
 
-    def api_request(self, method: str, endpoint: str, payload: Optional[dict] = None,
-                    result_code: Optional[int] = None, **kwargs) -> Any:
-        """ Handle a request to camera. """
-        headers = {
+    def is_authenticated(self, timeout: int = 120) -> bool:
+        if self._session_key is None:
+            return False
+
+        if isinstance(self._last_api_call, datetime):
+            last = self._last_api_call
+            now = datetime.now()
+
+            if now - last < timedelta(seconds=timeout):
+                return True
+
+        return False
+
+    async def api_request(self, method: str, endpoint: str, payload: Optional[dict] = None,
+                          result_code: Optional[int] = None) -> Any:
+        """ Handle an async request to camera. """
+        headers = self._get_headers()
+        url = self._url.with_path(endpoint)
+
+        if self._client_session is None:
+            self._client_session = aiohttp.ClientSession()
+            self._can_close_session = True
+
+        _LOGGER.debug(f"Async {method} request to {url} with payload: {payload}")
+        with async_timeout.timeout(self._request_timeout):
+            response = await self._client_session.request(
+                method,
+                url,
+                json=payload,
+                headers=headers,
+                raise_for_status=True
+            )
+        self._last_api_call = datetime.now()
+
+        if response.content_type != 'application/json':
+            return await response.text()
+
+        data = await response.json()
+        return self._parse_response(data, result_code)
+
+    def _get_headers(self) -> dict:
+        return {
             "User-Agent": self._user_agent,
             "Content-Type": "application/json",
         }
-        url = str(self._url.with_path(endpoint))
-        if 'timeout' not in kwargs:
-            kwargs.update({'timeout': self._request_timeout})
 
-        if self._session is None:
-            self._session = requests.Session()
-            self._can_close_session = True
-
-        _LOGGER.debug(f"{method} to {url} with payload: {payload}")
-        response = self._session.request(method, url, headers=headers, json=payload, **kwargs)
-        response.raise_for_status()
-        self._last_api_call = datetime.now()
-
-        return self._parse_response(response, result_code)
-
-    def is_authenticated(self, timeout: int = 120) -> bool:
-        if self._session_key is None or self._last_api_call is None:
-            return False
-
-        now = datetime.now()
-        last = self._last_api_call
-
-        if now - last >= timedelta(seconds=timeout):
-            return False
-
-        return True
-
-    def _parse_response(self, response: requests.Response, result_code: Optional[int] = None) -> Any:
+    def _parse_response(self, data: dict, result_code: Optional[int] = None) -> dict:
         """
-        Parse response from requests and check if ResultCode from api is valid.
+        Parse response from api request and check if ResultCode is valid.
 
-        :param response: (required) requests.Response.
+        :param data: (required) JSON data from api.
         :param result_code: (optional) Successful return code to check response.
-        :return: JSON data if content type is application/json.
+        :return: JSON data.
         """
-        content_type = response.headers.get('Content-type')
-        if content_type != 'application/json':
-            return response.content
-
-        data = response.json()
         _LOGGER.debug(f"Result: {data}")
 
         if result_code is None:
@@ -111,11 +119,10 @@ class ParadoxCamera(ParadoxModule):
 
         return data
 
-    def _close_session(self) -> None:
-        """Close open client session."""
-        if self._session and self._can_close_session:
-            self._session.close()
+    async def _async_close_session(self) -> None:
+        if self._client_session and self._can_close_session:
+            await self._client_session.close()
 
-    def __aexit__(self, *exc_info) -> None:
+    async def __aexit__(self, exc_type, exc, tb):
         """Async exit."""
-        self._close_session()
+        await self._async_close_session()
