@@ -1,8 +1,8 @@
 """The tests for the Paradox HD77 camera."""
 import os
 import pytest
-import requests
-import requests_mock
+from aiohttp import web
+from yarl import URL
 
 from pypdxapi.exceptions import ParadoxCameraError
 from pypdxapi.camera.hd77 import ParadoxHD77
@@ -15,228 +15,234 @@ def load_fixture(filename):
         return fptr.read()
 
 
-def fake_api(request, context):
-    if request.path == '/get':
-        context.status_code = 200
-        return 'Success'
-    if request.path == '/post' and request.json() == {'a': 'b'}:
-        context.status_code = 200
-        return 'Success'
-
-    return 'Error'
-
-
-def fake_hd77cam(request, context):
+async def fake_hd77(request: web.Request) -> web.Response:
     content_type = 'application/json'
-    status_code = 200
 
-    json = request.json()
-    data = None
+    payload = await request.json()
+    response_data = None
 
-    if 'SessionKey' in json:
-        if json['SessionKey'] == 'qeQHCBgRXSEKUNEcbNMBxCt_Jeh67gLk':
+    if 'SessionKey' not in payload:
+        if request.path == '/app/login':
+            if payload['UserCode'] == '010101' and payload['UserName'] == 'user001':
+                response_data = load_fixture('login.json')
+            else:
+                response_data = load_fixture('invalid_username.json')
+        if request.path == '/app/pingstatus':
+            if payload['ServerPassword'] == 'paradox':
+                response_data = load_fixture('pingstatus.json')
+            else:
+                response_data = load_fixture('invalid_server_password.json')
+    else:
+        if payload['SessionKey'] == 'qeQHCBgRXSEKUNEcbNMBxCt_Jeh67gLk':
             if request.path == '/app/getstatus':
-                data = load_fixture('getstatus.json')
+                response_data = load_fixture('getstatus.json')
             if request.path == '/app/rod':
-                data = load_fixture('rod.json')
+                response_data = load_fixture('rod.json')
             if request.path == '/app/areacontrol':
-                data = load_fixture('areacontrol.json')
+                response_data = load_fixture('areacontrol.json')
             if request.path == '/fil/getitemlist':
-                data = load_fixture('getitemlist.json')
+                response_data = load_fixture('getitemlist.json')
             if request.path == '/fil/deleteitem':
-                if json['ItemId'] == '45fcc296-2718-4519-a1e9-59d016c4ce8a':
-                    data = load_fixture('deleteitem.json')
+                if payload['ItemId'] == '45fcc296-2718-4519-a1e9-59d016c4ce8a':
+                    response_data = load_fixture('deleteitem.json')
                 else:
-                    data = load_fixture('invalid_item_id.json')
+                    response_data = load_fixture('invalid_item_id.json')
             if request.path == '/fil/playback':
-                if json['ItemId'] == '45fcc296-2718-4519-a1e9-59d016c4ce8a':
-                    data = load_fixture('playback.json')
+                if payload['ItemId'] == '45fcc296-2718-4519-a1e9-59d016c4ce8a':
+                    response_data = load_fixture('playback.json')
                 else:
-                    data = load_fixture('invalid_item_id.json')
+                    response_data = load_fixture('invalid_item_id.json')
             if request.path == '/fil/getthumbnail':
                 content_type = 'application/octet-stream'
-                data = 'Image'
+                response_data = 'Image'
             if request.path == '/hls/vod':
                 content_type = 'audio/x-mpegURL'
-                data = 'm3u8'
+                response_data = 'm3u8'
         else:
-            data = load_fixture('invalid_session_key.json')
-    else:
-        if request.path == '/app/login':
-            if json['UserCode'] == '010101' and json['UserName'] == 'user001':
-                data = load_fixture('login.json')
-            else:
-                data = load_fixture('invalid_username.json')
-        if request.path == '/app/pingstatus':
-            if json['ServerPassword'] == 'paradox':
-                data = load_fixture('pingstatus.json')
-            else:
-                data = load_fixture('invalid_server_password.json')
+            response_data = load_fixture('invalid_session_key.json')
 
-    context.headers['Content-Type'] = content_type
-    context.status_code = status_code
-    return data
+    response = web.Response()
+    response.content_type = content_type
+    response.body = response_data
+
+    return response
 
 
 @pytest.fixture
-def client_session() -> requests.Session:
-    adapter = requests_mock.Adapter()
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/app/login', text=fake_hd77cam)
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/app/pingstatus', text=fake_hd77cam)
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/app/getstatus', text=fake_hd77cam)
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/app/rod', text=fake_hd77cam)
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/app/areacontrol', text=fake_hd77cam)
+def client_session(loop, aiohttp_client):
+    app = web.Application()
+    app.router.add_post('/app/login', fake_hd77)
+    app.router.add_post('/app/pingstatus', fake_hd77)
+    app.router.add_post('/app/getstatus', fake_hd77)
+    app.router.add_post('/app/rod', fake_hd77)
+    app.router.add_post('/app/areacontrol', fake_hd77)
 
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/fil/getitemlist', text=fake_hd77cam)
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/fil/deleteitem', text=fake_hd77cam)
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/fil/playback', text=fake_hd77cam)
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/fil/getthumbnail', text=fake_hd77cam)
+    app.router.add_post('/fil/getitemlist', fake_hd77)
+    app.router.add_post('/fil/deleteitem', fake_hd77)
+    app.router.add_post('/fil/playback', fake_hd77)
+    app.router.add_post('/fil/getthumbnail', fake_hd77)
 
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/hls/vod', text=fake_hd77cam)
+    app.router.add_post('/hls/vod', fake_hd77)
 
-    session = requests.Session()
-    session.mount('mock://', adapter)
-
-    return session
+    return loop.run_until_complete(aiohttp_client(app))
 
 
-def test_login(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
+def get_camera(session, module_password: str = 'paradox', **kwargs):
+    camera = ParadoxHD77(host='127.0.0.1', port=80, module_password=module_password,
+                         client_session=session, **kwargs)
+    camera._url = URL.build()
 
-    cam.login(usercode='010101', username='user001')
-    assert cam.name == 'Camera 1'
-    assert cam.model == 'HD77'
-    assert cam.version == 'v1.25.7'
-    assert cam.serial == 'e0000002'
-    assert cam.session_key == 'qeQHCBgRXSEKUNEcbNMBxCt_Jeh67gLk'
+    return camera
 
-    cam._raise_on_response_error = True
+
+async def test_login(client_session):
+    hd77 = get_camera(client_session)
+
+    assert not hd77.is_authenticated()
+
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
+
+    assert hd77.name == 'Camera 1'
+    assert hd77.model == 'HD77'
+    assert hd77.version == 'v1.25.7'
+    assert hd77.serial == 'e0000002'
+    assert hd77.session_key == 'qeQHCBgRXSEKUNEcbNMBxCt_Jeh67gLk'
+
+    hd77.logout()
+    assert not hd77.is_authenticated()
+
+    hd77._raise_on_response_error = True
     with pytest.raises(ParadoxCameraError):
-        cam.login(usercode='error', username='error')
+        await hd77.login(usercode='error', username='error')
+        assert not hd77.is_authenticated()
 
 
-def test_pingstatus(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
+async def test_pingstatus(client_session):
+    hd77 = get_camera(client_session)
 
-    data = cam.pingstatus()
+    data = await hd77.pingstatus()
     assert data['ResultStr'] == 'Ping status request successful'
 
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='error', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
+    hd77 = get_camera(client_session, module_password='error')
 
-    data = cam.pingstatus()
+    data = await hd77.pingstatus()
     assert data['ResultStr'] == 'Login refused, invalid server password'
 
-    cam._raise_on_response_error = True
+    hd77._raise_on_response_error = True
     with pytest.raises(ParadoxCameraError):
-        cam.pingstatus()
+        await hd77.pingstatus()
 
 
-def test_getstatus(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
+async def test_getstatus(client_session):
+    hd77 = get_camera(client_session)
 
-    data = cam.getstatus(status_type=1)
-    assert data['ResultStr'] == 'Request failed, invalid session key'
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
 
-    cam._raise_on_response_error = True
-    with pytest.raises(ParadoxCameraError):
-        cam.getstatus(status_type=1)
-
-    cam.login(usercode='010101', username='user001')
-    data = cam.getstatus(status_type=1)
+    data = await hd77.getstatus(status_type=1)
     assert data['ResultStr'] == 'Get status request successful'
 
 
-def test_rod(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
+async def test_rod(client_session):
+    hd77 = get_camera(client_session)
 
-    cam._raise_on_response_error = True
-    with pytest.raises(ParadoxCameraError):
-        cam.rod()
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
 
-    cam.login(usercode='010101', username='user001')
-    data = cam.rod()
+    data = await hd77.rod()
     assert data['ResultStr'] == 'ROD request successful'
 
 
-def test_areacontrol(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
+async def test_areacontrol(client_session):
+    hd77 = get_camera(client_session)
 
-    data = cam.areacontrol([{"ForceZones": False, "AreaCommand": 6, "AreaID": 1}])
-    assert data['ResultStr'] == 'Request failed, invalid session key'
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
 
-    cam.login(usercode='010101', username='user001')
-    data = cam.areacontrol([{"ForceZones": False, "AreaCommand": 6, "AreaID": 1}])
+    data = await hd77.areacontrol([{"ForceZones": False, "AreaCommand": 6, "AreaID": 1}])
     assert data['Areas'][0]['OpResultCode'] == 34209792
 
 
-def test_getitemlist(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
+async def test_getitemlist(client_session):
+    hd77 = get_camera(client_session)
 
-    cam._raise_on_response_error = True
-    with pytest.raises(ParadoxCameraError):
-        cam.getitemlist()
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
 
-    cam.login(usercode='010101', username='user001')
-    data = cam.getitemlist()
+    data = await hd77.getitemlist()
     assert data['ResultStr'] == 'Browse, request successful'
 
 
-def test_deleteitem(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
-    cam.login(usercode='010101', username='user001')
+async def test_deleteitem(client_session):
+    hd77 = get_camera(client_session)
 
-    data = cam.deleteitem('45fcc296-2718-4519-a1e9-59d016c4ce8a')
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
+
+    data = await hd77.deleteitem('45fcc296-2718-4519-a1e9-59d016c4ce8a')
     assert data['ResultStr'] == 'Item delete, request successful'
 
-    data = cam.playback('error')
+    data = await hd77.deleteitem('error')
     assert data['ResultStr'] == 'Item play failed, invalid item id'
 
-    cam._raise_on_response_error = True
+    hd77._raise_on_response_error = True
     with pytest.raises(ParadoxCameraError):
-        cam.playback('error')
+        await hd77.deleteitem('error')
 
 
-def test_playback(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
-    cam.login(usercode='010101', username='user001')
+async def test_playback(client_session):
+    hd77 = get_camera(client_session)
 
-    data = cam.playback('45fcc296-2718-4519-a1e9-59d016c4ce8a')
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
+
+    data = await hd77.playback('45fcc296-2718-4519-a1e9-59d016c4ce8a')
     assert data['ResultStr'] == 'Item playback, request successful'
 
-    data = cam.playback('error')
+    data = await hd77.playback('error')
     assert data['ResultStr'] == 'Item play failed, invalid item id'
 
-
-def test_getthumbnail(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
-
-    cam._raise_on_response_error = True
+    hd77._raise_on_response_error = True
     with pytest.raises(ParadoxCameraError):
-        cam.getthumbnail()
-
-    cam.login(usercode='010101', username='user001')
-    data = cam.getthumbnail()
-    assert data == b'Image'
+        await hd77.playback('error')
 
 
-def test_vod(client_session):
-    cam = ParadoxHD77(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    cam._url = cam._url.with_scheme('mock')
+async def test_getthumbnail(client_session):
+    hd77 = get_camera(client_session)
 
-    cam._raise_on_response_error = True
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
+
+    data = await hd77.getthumbnail()
+    assert data == 'Image'
+
+    hd77.logout()
+    assert not hd77.is_authenticated()
+
+    data = await hd77.getthumbnail()
+    assert data['ResultStr'] == 'Request failed, invalid session key'
+
+    hd77._raise_on_response_error = True
     with pytest.raises(ParadoxCameraError):
-        cam.vod()
+        await hd77.getthumbnail()
 
-    cam.login(usercode='010101', username='user001')
-    data = cam.vod(action=1, channel_type='normal')
-    assert data == b'm3u8'
+
+async def test_vod(client_session):
+    hd77 = get_camera(client_session)
+
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
+
+    data = await hd77.vod(action=1, channel_type='normal')
+    assert data == 'm3u8'
+
+    hd77.logout()
+    assert not hd77.is_authenticated()
+
+    data = await hd77.vod()
+    assert data['ResultStr'] == 'Request failed, invalid session key'
+
+    hd77._raise_on_response_error = True
+    with pytest.raises(ParadoxCameraError):
+        await hd77.vod()

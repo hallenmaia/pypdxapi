@@ -1,127 +1,126 @@
-"""The tests for the ParadoxCamera."""
-import json
 import pytest
-import requests
-import requests_mock
-from time import sleep
+import asyncio
+import json
+from aiohttp import web, ClientResponseError
+from yarl import URL
+from datetime import datetime
 
-from pypdxapi.camera.camera import (ParadoxCamera, ParadoxCameraError)
+from pypdxapi.camera.camera import ParadoxCamera
+from pypdxapi.exceptions import ParadoxCameraError
 
 
-def fake_api(request, context):
-    content_type = 'application/json'
-    status_code = 200
-    data = None
+async def fake_camera(request: web.Request) -> web.Response:
+    content_type = None
+    response_data = None
 
-    if request.path == '/404':
-        content_type = 'text/html'
-        status_code = 404
-        data = '404'
-    if request.path == '/not_application_json':
+    if request.path == '/timeout':
+        await asyncio.sleep(2)
+    if request.path == '/audio':
         content_type = 'audio/x-mpegURL'
-        data = 'm3u8'
-    if request.path == '/application_json':
-        payload = request.json()
-        if payload['RequestCode'] == 1:
-            data = json.dumps(
-                {
-                    "ResultCode": 101010,
-                    "ResultStr": 'Success'
-                }
-            )
-        if payload['RequestCode'] == 2:
-            data = json.dumps(
-                {
-                    "ResultStr": 'Success'
-                }
-            )
+        response_data = b'm3u8'
+    if request.path == '/json':
+        content_type = 'application/json'
+        payload = await request.json()
+        response_data = json.dumps(
+            {
+                "ResultCode": 1,
+                "ResultStr": payload['ResultStr']
+            }
+        )
 
-    context.headers['Content-Type'] = content_type
-    context.status_code = status_code
-    return data
+    response = web.Response()
+    response.content_type = content_type
+    response.body = response_data
+
+    return response
 
 
 @pytest.fixture
-def client_session() -> requests.Session:
-    adapter = requests_mock.Adapter()
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/404', text=fake_api)
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/not_application_json', text=fake_api)
-    adapter.register_uri('POST', 'mock://127.0.0.1:80/application_json', text=fake_api)
+def client_session(loop, aiohttp_client):
+    app = web.Application()
+    app.router.add_post('/timeout', fake_camera)
+    app.router.add_post('/audio', fake_camera)
+    app.router.add_post('/json', fake_camera)
 
-    session = requests.Session()
-    session.mount('mock://', adapter)
-
-    return session
+    return loop.run_until_complete(aiohttp_client(app))
 
 
-def test_api_request_404(client_session: requests.Session):
-    base = ParadoxCamera(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    base._url = base._url.with_scheme('mock')
+def get_camera(session, module_password: str = 'paradox', **kwargs):
+    camera = ParadoxCamera(host='127.0.0.1', port=80, module_password=module_password,
+                           client_session=session, **kwargs)
+    camera._url = URL.build()
 
-    with pytest.raises(requests.exceptions.HTTPError):
-        base.api_request(method='POST', endpoint='/404', payload={})
-
-
-def test_api_request_not_json(client_session: requests.Session):
-    base = ParadoxCamera(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    base._url = base._url.with_scheme('mock')
-
-    response = base.api_request(method='POST', endpoint='/not_application_json', payload={})
-    assert response == b'm3u8'
+    return camera
 
 
-def test_api_request_json(client_session: requests.Session):
-    base = ParadoxCamera(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    base._url = base._url.with_scheme('mock')
+async def test_is_authenticated():
+    camera = get_camera(None)
 
-    # 'ResultCode' in data
-    payload = {"RequestCode": 1}
-    base._raise_on_response_error = False
+    assert not camera.is_authenticated()
 
-    # result_code is None
-    response = base.api_request(method='POST', endpoint='/application_json', payload=payload)
-    assert response['ResultStr'] == 'Success'
+    camera._session_key = '_session_key'
+    assert not camera.is_authenticated()
 
-    # result_code == ResultCode
-    response = base.api_request(method='POST', endpoint='/application_json', payload=payload, result_code=101010)
-    assert response['ResultStr'] == 'Success'
+    camera._last_api_call = datetime.now()
+    assert camera.is_authenticated()
 
-    # result_code != ResultCode
-    base._raise_on_response_error = True
-    with pytest.raises(ParadoxCameraError) as err:
-        base.api_request(method='POST', endpoint='/application_json', payload=payload, result_code=202020)
-        assert 'Error no 101010: Success' == str(err.value)
-
-    # 'ResultCode' NOT in data
-    payload = {"RequestCode": 2}
-    base._raise_on_response_error = False
-
-    # result_code is None
-    response = base.api_request(method='POST', endpoint='/application_json', payload=payload)
-    assert response['ResultStr'] == 'Success'
-
-    response = base.api_request(method='POST', endpoint='/application_json', payload=payload, result_code=101010)
-    assert response['ResultStr'] == 'Unknown error occurred while communicating with Paradox camera.'
-
-    base._raise_on_response_error = True
-    with pytest.raises(ParadoxCameraError) as err:
-        base.api_request(method='POST', endpoint='/application_json', payload=payload, result_code=101010)
-        assert 'Unknown error occurred while communicating with Paradox camera.' == str(err.value)
+    await asyncio.sleep(2)
+    assert not camera.is_authenticated(timeout=1)
 
 
-def test_is_authenticated(client_session: requests.Session):
-    base = ParadoxCamera(host='127.0.0.1', port=80, module_password='paradox', session=client_session)
-    base._url = base._url.with_scheme('mock')
+async def test_async_api_request_404(client_session):
+    camera = get_camera(client_session)
 
-    assert not base.is_authenticated()
-    base._session_key = '_session_key'
-    assert not base.is_authenticated()
+    with pytest.raises(ClientResponseError):
+        await camera.api_request(method='POST', endpoint='/404', payload={})
 
-    payload = {"RequestCode": 1}
-    response = base.api_request(method='POST', endpoint='/application_json', payload=payload)
-    assert response['ResultStr'] == 'Success'
-    assert base.is_authenticated()
 
-    sleep(3)
-    assert not base.is_authenticated(timeout=2)
+async def test_async_api_request_timeout(client_session):
+    camera = get_camera(client_session, request_timeout=1)
 
+    with pytest.raises(asyncio.TimeoutError):
+        await camera.api_request(method='POST', endpoint='/timeout', payload={})
+
+
+async def test_async_api_request_audio(client_session):
+    camera = get_camera(client_session)
+
+    response = await camera.api_request(method='POST', endpoint='/audio', payload={})
+    assert response == 'm3u8'
+
+
+async def test_async_api_request_json(client_session):
+    camera = get_camera(client_session)
+
+    payload = {
+        "ResultStr": 'Success'
+    }
+    response = await camera.api_request(method='POST', endpoint='/json', payload=payload)
+    assert response['ResultCode'] == 1
+    assert response['ResultStr'] == payload['ResultStr']
+
+
+def test_parse_response():
+    camera = get_camera(None)
+
+    response = {
+        "ResultCode": 1,
+        "ResultStr": 'Success'
+    }
+
+    data = camera._parse_response(response, None)
+    assert data['ResultCode'] == 1
+    assert data['ResultStr'] == 'Success'
+
+    data = camera._parse_response(response, 1)
+    assert data['ResultCode'] == 1
+    assert data['ResultStr'] == 'Success'
+
+    response.pop('ResultCode')
+    data = camera._parse_response(response, 1)
+    assert data['ResultCode'] == -1
+    assert data['ResultStr'] == 'Unknown error occurred while communicating with Paradox camera.'
+
+    camera._raise_on_response_error = True
+    with pytest.raises(ParadoxCameraError):
+        camera._parse_response(response, 1)
