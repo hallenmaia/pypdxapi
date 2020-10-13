@@ -1,9 +1,9 @@
 """ Python implementation of Paradox HD7X cameras."""
 import logging
-import aiohttp
-import async_timeout
 from datetime import datetime, timedelta
 from typing import Optional, Any
+import async_timeout
+import aiohttp
 from yarl import URL
 
 from pypdxapi.__version__ import __version__
@@ -22,16 +22,21 @@ class ParadoxCamera(ParadoxModule):
     _last_api_call: Optional[datetime] = None
     _can_close_session: bool = False
 
-    def __init__(self, host: str, port: int, module_password: str,
-                 client_session: aiohttp.ClientSession = None,
-                 request_timeout: Optional[int] = None,
-                 user_agent: Optional[str] = None,
-                 raise_on_response_error: bool = False) -> None:
+    # pylint: disable=too-many-arguments
+    def __init__(
+            self,
+            host: str,
+            port: int,
+            module_password: str,
+            client_session: aiohttp.ClientSession = None,
+            request_timeout: Optional[int] = None,
+            user_agent: Optional[str] = None,
+            raise_on_response_error: bool = False) -> None:
 
         self._client_session = client_session
-        self._request_timeout: int = request_timeout if request_timeout else 10
-        self._user_agent: str = user_agent if user_agent else f"PyPdxApi/{__version__}"
-        self._raise_on_response_error: bool = raise_on_response_error
+        self._request_timeout = request_timeout if request_timeout else 10
+        self._user_agent = user_agent if user_agent else f"PyPdxApi/{__version__}"
+        self._raise_on_response_error = raise_on_response_error
 
         self._url: URL = URL.build(scheme='http', host=host, port=port)
         super().__init__(host=host, port=port, module_password=module_password)
@@ -47,6 +52,11 @@ class ParadoxCamera(ParadoxModule):
         return self._last_api_call
 
     def is_authenticated(self, timeout: int = 120) -> bool:
+        """ Returns true, session_key is valid and is not expired, otherwise false.
+
+        :param timeout: Time (in seconds) for the session to be considered expired.
+        :return: True/False
+        """
         if self._session_key is None:
             return False
 
@@ -69,7 +79,7 @@ class ParadoxCamera(ParadoxModule):
             self._client_session = aiohttp.ClientSession()
             self._can_close_session = True
 
-        _LOGGER.debug(f"Async {method} request to {url} with payload: {payload}")
+        _LOGGER.debug("Async %s to %s  with payload: %s", method, url, payload)
         with async_timeout.timeout(self._request_timeout):
             response = await self._client_session.request(
                 method,
@@ -100,19 +110,19 @@ class ParadoxCamera(ParadoxModule):
         :param result_code: (optional) Successful return code to check response.
         :return: JSON data.
         """
-        _LOGGER.debug(f"Result: {data}")
+        _LOGGER.debug("Result: %s", data)
 
         if result_code is None:
             return data
+
+        if 'ResultCode' in data:
+            if data['ResultCode'] == result_code:
+                return data
         else:
-            if 'ResultCode' in data:
-                if data['ResultCode'] == result_code:
-                    return data
-            else:
-                data = {
-                    "ResultCode": -1,
-                    "ResultStr": "Unknown error occurred while communicating with Paradox camera."
-                }
+            data = {
+                "ResultCode": -1,
+                "ResultStr": "Unknown error occurred while communicating with Paradox camera."
+            }
 
         if self._raise_on_response_error:
             raise ParadoxCameraError(f"Error no {data['ResultCode']}: {data['ResultStr']}")
@@ -123,6 +133,7 @@ class ParadoxCamera(ParadoxModule):
         if self._client_session and self._can_close_session:
             await self._client_session.close()
 
+    # pylint: disable=invalid-name
     async def __aexit__(self, exc_type, exc, tb):
         """Async exit."""
         await self._async_close_session()
