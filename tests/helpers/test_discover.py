@@ -18,6 +18,6 @@ def test_parse_modules():
         {'type': 'a2', 'ip': 'b2', 'name': 'c2'},
         {'type': 'a1', 'ip': 'b1', 'name': 'c1'},
     ]
-    result = discover._parse_modules(data)
+    result = discover._remove_duplicates(data)
 
     assert len(result) == 2
