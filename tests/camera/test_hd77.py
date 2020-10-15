@@ -34,6 +34,8 @@ async def fake_hd77(request: web.Request) -> web.Response:
                 response_data = load_fixture('invalid_server_password.json')
     else:
         if payload['SessionKey'] == 'qeQHCBgRXSEKUNEcbNMBxCt_Jeh67gLk':
+            if request.path == '/app/logout':
+                response_data = load_fixture('logout.json')
             if request.path == '/app/getstatus':
                 response_data = load_fixture('getstatus.json')
             if request.path == '/app/rod':
@@ -72,6 +74,7 @@ async def fake_hd77(request: web.Request) -> web.Response:
 def client_session(loop, aiohttp_client):
     app = web.Application()
     app.router.add_post('/app/login', fake_hd77)
+    app.router.add_post('/app/logout', fake_hd77)
     app.router.add_post('/app/pingstatus', fake_hd77)
     app.router.add_post('/app/getstatus', fake_hd77)
     app.router.add_post('/app/rod', fake_hd77)
@@ -109,13 +112,29 @@ async def test_login(client_session):
     assert hd77.serial == 'e0000002'
     assert hd77.session_key == 'qeQHCBgRXSEKUNEcbNMBxCt_Jeh67gLk'
 
-    hd77.logout()
+    data = await hd77.logout()
+    assert data['ResultStr'] == 'SERVER and SYSTEM logout successful'
     assert not hd77.is_authenticated()
 
     hd77._raise_on_response_error = True
     with pytest.raises(ParadoxCameraError):
         await hd77.login(usercode='error', username='error')
         assert not hd77.is_authenticated()
+
+
+async def test_logout(client_session):
+    hd77 = get_camera(client_session)
+
+    assert not hd77.is_authenticated()
+    data = await hd77.logout()
+    assert data['ResultStr'] == 'Request failed, invalid session key'
+
+    await hd77.login(usercode='010101', username='user001')
+    assert hd77.is_authenticated()
+
+    data = await hd77.logout()
+    assert data['ResultStr'] == 'SERVER and SYSTEM logout successful'
+    assert not hd77.is_authenticated()
 
 
 async def test_pingstatus(client_session):
@@ -217,7 +236,7 @@ async def test_getthumbnail(client_session):
     data = await hd77.getthumbnail()
     assert data == 'Image'
 
-    hd77.logout()
+    await hd77.logout()
     assert not hd77.is_authenticated()
 
     data = await hd77.getthumbnail()
@@ -237,7 +256,7 @@ async def test_vod(client_session):
     data = await hd77.vod(action=1, channel_type='normal')
     assert data == 'm3u8'
 
-    hd77.logout()
+    await hd77.logout()
     assert not hd77.is_authenticated()
 
     data = await hd77.vod()

@@ -69,13 +69,19 @@ class ParadoxHD77(ParadoxCamera):
 
         return data
 
-    def logout(self) -> None:
+    async def logout(self) -> dict:
         """
         Set session_key to None so you will not be able to make calls that require authentication.
 
-        :return: None
+        :return: JSON data from camera
         """
+        payload = {
+            "ClientDateTime": self._client_datetime(),
+            "SessionKey": self._session_key
+        }
         self._session_key = None
+
+        return await self.api_request('POST', endpoint='/app/logout', payload=payload)
 
     async def pingstatus(self) -> dict:
         """ Get some info from camera and panel. This not require login.
