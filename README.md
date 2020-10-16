@@ -30,17 +30,14 @@ pip install pypdxapi
 
 ```python
 import asyncio
-
 from pypdxapi.camera import ParadoxHD77
-
 
 async def main():
     """Show example of connecting to your Paradox HD77 camera."""
-    async with ParadoxHD77(host='192.168.1.50', port=80, module_password='paradox') as hd77:
-        hd77.login(usercode='1234', username='master')
+    async with ParadoxHD77(host='192.168.1.3', port=80, module_password='paradox') as hd77:
+        await hd77.login(usercode='111111', username='user1')
         if hd77.is_authenticated():
-            print(hd77.vod(action=1, channel_type='normal'))
-
+            print(await hd77.vod(channel_type='normal'))
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

@@ -1,11 +1,10 @@
 """ Python implementation of Paradox module discover."""
 import sys
 import logging
-from typing import Optional, List
+from typing import List
 from socket import (socket, timeout, AF_INET, SOCK_DGRAM, IPPROTO_UDP, SOL_SOCKET, SO_REUSEADDR,
                     SO_REUSEPORT, SO_BROADCAST)
 from urllib.parse import parse_qsl
-from time import sleep
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,24 +21,36 @@ def discover_modules(num_attempts: int = 5) -> List[dict]:
     _set_sock_opt(discovery, SO_REUSEADDR, 1)
     _set_sock_opt(discovery, SO_REUSEPORT, 1)
     _set_sock_opt(discovery, SO_BROADCAST, 1)
-    discovery.settimeout(0.2)
+    discovery.settimeout(0.5)
 
+    attempt = 1
     modules = []
     try:
         discovery.bind(('', port))
-        for _ in range(num_attempts):
-            _send_discover(discovery, port)
+        discovery.sendto(b'paradoxip?', ('<broadcast>', port))
+        _LOGGER.debug("Paradox discovery announcement sent (%s attempt)...", attempt)
 
-            response = _recv_discover(discovery)
-            if response:
-                modules.append(_parse_response(response))
+        while True:
+            try:
+                data, addr = discovery.recvfrom(1024)
+            except timeout:
+                attempt += 1
+                if attempt > num_attempts:
+                    break
+                discovery.sendto(b'paradoxip?', ('<broadcast>', port))
+                _LOGGER.debug("Paradox discovery announcement sent (%s attempt)...", attempt)
+            else:
+                response = data.decode()
+                if response.startswith('paradoxip!'):
+                    _LOGGER.debug("Found Paradox module on %s: %s", addr, response)
+                    modules.append(_parse_response(response))
 
-    except OSError as err:
-        _LOGGER.error("Discovery error: %s", err)
+    except OSError:
+        _LOGGER.exception("Discovery error.")
     finally:
         discovery.close()
 
-    return _parse_modules(modules)
+    return _remove_duplicates(modules)
 
 
 def _set_sock_opt(sck: socket, optname: int, value: int):
@@ -49,27 +60,6 @@ def _set_sock_opt(sck: socket, optname: int, value: int):
         _LOGGER.error("Systems don't support this socket option %s with value: %s", optname, value)
 
 
-def _send_discover(discovery: socket, port: int) -> None:
-    _LOGGER.debug("Sent Paradox discover service announcement...")
-    discovery.sendto(b'paradoxip?', ('<broadcast>', port))
-    sleep(0.5)
-
-
-def _recv_discover(discovery: socket) -> Optional[str]:
-    while True:
-        try:
-            data, addr = discovery.recvfrom(1024)
-        except timeout:
-            break
-        else:
-            response = data.decode()
-            if response.startswith('paradoxip!'):
-                _LOGGER.debug("Found Paradox module on %s: %s", addr, response)
-                return response
-
-    return None
-
-
 def _parse_response(result: str) -> dict:
     if sys.version_info >= (3, 9):
         return dict(parse_qsl(result.removeprefix('paradoxip!')))
@@ -77,5 +67,5 @@ def _parse_response(result: str) -> dict:
     return dict(parse_qsl(result[len('paradoxip!'):]))
 
 
-def _parse_modules(modules: List[dict]) -> List[dict]:
+def _remove_duplicates(modules: List[dict]) -> List[dict]:
     return [dict(t) for t in {tuple(d.items()) for d in modules}]
