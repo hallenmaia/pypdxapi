@@ -1,7 +1,7 @@
 """The tests for the Paradox HD77 camera."""
 import os
 import pytest
-from aiohttp import web
+from aiohttp import web, StreamReader
 from yarl import URL
 
 from pypdxapi.exceptions import ParadoxCameraError
@@ -116,7 +116,11 @@ async def test_login(client_session):
     assert data['ResultStr'] == 'SERVER and SYSTEM logout successful'
     assert not hd77.is_authenticated()
 
-    hd77._raise_on_response_error = True
+    hd77._raise_on_result_code_error = False
+    data = await hd77.login(usercode='error', username='error')
+    assert data['ResultStr'] == 'Login refused, invalid username'
+
+    hd77._raise_on_result_code_error = True
     with pytest.raises(ParadoxCameraError):
         await hd77.login(usercode='error', username='error')
         assert not hd77.is_authenticated()
@@ -145,10 +149,11 @@ async def test_pingstatus(client_session):
 
     hd77 = get_camera(client_session, module_password='error')
 
+    hd77._raise_on_result_code_error = False
     data = await hd77.pingstatus()
     assert data['ResultStr'] == 'Login refused, invalid server password'
 
-    hd77._raise_on_response_error = True
+    hd77._raise_on_result_code_error = True
     with pytest.raises(ParadoxCameraError):
         await hd77.pingstatus()
 
@@ -202,10 +207,11 @@ async def test_deleteitem(client_session):
     data = await hd77.deleteitem('45fcc296-2718-4519-a1e9-59d016c4ce8a')
     assert data['ResultStr'] == 'Item delete, request successful'
 
+    hd77._raise_on_result_code_error = False
     data = await hd77.deleteitem('error')
     assert data['ResultStr'] == 'Item play failed, invalid item id'
 
-    hd77._raise_on_response_error = True
+    hd77._raise_on_result_code_error = True
     with pytest.raises(ParadoxCameraError):
         await hd77.deleteitem('error')
 
@@ -219,10 +225,11 @@ async def test_playback(client_session):
     data = await hd77.playback('45fcc296-2718-4519-a1e9-59d016c4ce8a')
     assert data['ResultStr'] == 'Item playback, request successful'
 
+    hd77._raise_on_result_code_error = False
     data = await hd77.playback('error')
     assert data['ResultStr'] == 'Item play failed, invalid item id'
 
-    hd77._raise_on_response_error = True
+    hd77._raise_on_result_code_error = True
     with pytest.raises(ParadoxCameraError):
         await hd77.playback('error')
 
@@ -234,15 +241,16 @@ async def test_getthumbnail(client_session):
     assert hd77.is_authenticated()
 
     data = await hd77.getthumbnail()
-    assert data == 'Image'
+    assert isinstance(data, StreamReader)
 
     await hd77.logout()
     assert not hd77.is_authenticated()
 
+    hd77._raise_on_result_code_error = False
     data = await hd77.getthumbnail()
     assert data['ResultStr'] == 'Request failed, invalid session key'
 
-    hd77._raise_on_response_error = True
+    hd77._raise_on_result_code_error = True
     with pytest.raises(ParadoxCameraError):
         await hd77.getthumbnail()
 
@@ -253,15 +261,16 @@ async def test_vod(client_session):
     await hd77.login(usercode='010101', username='user001')
     assert hd77.is_authenticated()
 
-    data = await hd77.vod(action=1, channel_type='normal')
+    data = await hd77.vod(channel_type='normal')
     assert data == 'm3u8'
 
     await hd77.logout()
     assert not hd77.is_authenticated()
 
+    hd77._raise_on_result_code_error = False
     data = await hd77.vod()
     assert data['ResultStr'] == 'Request failed, invalid session key'
 
-    hd77._raise_on_response_error = True
+    hd77._raise_on_result_code_error = True
     with pytest.raises(ParadoxCameraError):
         await hd77.vod()

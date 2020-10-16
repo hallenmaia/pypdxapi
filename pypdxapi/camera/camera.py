@@ -5,6 +5,7 @@ from typing import Optional, Any
 import async_timeout
 import aiohttp
 from yarl import URL
+from json import JSONDecodeError
 
 from pypdxapi.__version__ import __version__
 from pypdxapi.module import ParadoxModule
@@ -31,12 +32,12 @@ class ParadoxCamera(ParadoxModule):
             client_session: aiohttp.ClientSession = None,
             request_timeout: Optional[int] = None,
             user_agent: Optional[str] = None,
-            raise_on_response_error: bool = False) -> None:
+            raise_on_result_code_error: bool = False) -> None:
 
         self._client_session = client_session
         self._request_timeout = request_timeout if request_timeout else 10
         self._user_agent = user_agent if user_agent else f"PyPdxApi/{__version__}"
-        self._raise_on_response_error = raise_on_response_error
+        self._raise_on_result_code_error = raise_on_result_code_error
 
         self._url: URL = URL.build(scheme='http', host=host, port=port)
         super().__init__(host=host, port=port, module_password=module_password)
@@ -69,8 +70,10 @@ class ParadoxCamera(ParadoxModule):
 
         return False
 
-    async def api_request(self, method: str, endpoint: str, payload: Optional[dict] = None,
-                          result_code: Optional[int] = None) -> Any:
+    async def api_request(self, method: str, endpoint: str,
+                          payload: Optional[dict] = None,
+                          content_type: Optional[str] = 'application/json'
+                          ) -> Any:
         """ Handle an async request to camera. """
         headers = self._get_headers()
         url = self._url.with_path(endpoint)
@@ -90,11 +93,33 @@ class ParadoxCamera(ParadoxModule):
             )
         self._last_api_call = datetime.now()
 
-        if response.content_type != 'application/json':
-            return await response.text()
+        if content_type and response.content_type != content_type:
+            if response.content_type == 'application/json':
+                try:
+                    data = await response.json()
+                    return self._parse_response(data, None)
+                except JSONDecodeError as err:
+                    raise ParadoxCameraError(err)
+                except NotImplementedError as err:
+                    raise ParadoxCameraError(err)
+            else:
+                raise ParadoxCameraError(
+                    f"Error receiving data from the camera. The expected content type is: '{content_type}', "
+                    f"received: '{response.content_type}'"
+                )
 
-        data = await response.json()
-        return self._parse_response(data, result_code)
+        if response.content_type == 'application/json':
+            try:
+                return await response.json()
+            except JSONDecodeError as err:
+                raise ParadoxCameraError(err)
+            except NotImplementedError as err:
+                raise ParadoxCameraError(err)
+
+        if response.content_type == 'application/octet-stream':
+            return response.content
+
+        return await response.text()
 
     def _get_headers(self) -> dict:
         return {
@@ -102,19 +127,14 @@ class ParadoxCamera(ParadoxModule):
             "Content-Type": "application/json",
         }
 
-    def _parse_response(self, data: dict, result_code: Optional[int] = None) -> dict:
+    def _parse_response(self, data: dict, result_code: Optional[int]) -> dict:
         """
         Parse response from api request and check if ResultCode is valid.
 
         :param data: (required) JSON data from api.
-        :param result_code: (optional) Successful return code to check response.
+        :param result_code: (required) Successful return code to check response.
         :return: JSON data.
         """
-        _LOGGER.debug("Result: %s", data)
-
-        if result_code is None:
-            return data
-
         if 'ResultCode' in data:
             if data['ResultCode'] == result_code:
                 return data
@@ -124,7 +144,7 @@ class ParadoxCamera(ParadoxModule):
                 "ResultStr": "Unknown error occurred while communicating with Paradox camera."
             }
 
-        if self._raise_on_response_error:
+        if self._raise_on_result_code_error:
             raise ParadoxCameraError(f"Error no {data['ResultCode']}: {data['ResultStr']}")
 
         return data
@@ -133,7 +153,10 @@ class ParadoxCamera(ParadoxModule):
         if self._client_session and self._can_close_session:
             await self._client_session.close()
 
-    # pylint: disable=invalid-name
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aenter__(self) -> 'ParadoxCamera':
+        """Async enter."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async exit."""
         await self._async_close_session()
